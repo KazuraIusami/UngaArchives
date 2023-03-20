@@ -1,0 +1,791 @@
+<!DOCTYPE html><html>
+
+<!-- 										Look into pausing the animate function on pause 	[event listeners are a bitch, incomplete]
+												Look into an Options for the pause screen		[COMPLETED!]
+													Attach FOV to it?							[Incomplete, dunno about attaching a slider just for FOV]
+													Attach showInputs							[COMPLETED! +Added a changing background green = yes red = no]
+														Maybe do more with showInputs?
+													Maybe attach mouse sensitivity				[Incomplete, scaleFactor is something I wanna think about]
+												Make a control scheme layout to show in the Options in the pause menu [COMPLETED!]
+												(pretty easy one) Make the dev log start closed, dunno why i havent yet. gotta make sure the [x] stays tho. It should [COMPLETED!]
+												
+												[COLLISION DETECTION] (fuuuuck idk maybe)
+												
+												
+													following log started 4pm 3/19 =>
+													
+														*Wallman is not appearing when the wall is left, because of this part =>
+														
+																	if (camera.position.x > -5 && camera.position.x < -2.5 && camera.position.z > 2.5 && camera.position.z < 5) {
+																		// Get close to scary wall	
+																			Wall9.material = wallIndex.falsematerial;
+							
+																	} else {
+																		// Do something else if camera.position.x is outside the specified range
+																		if(Wall9.material === wallIndex.material){
+																			doorPrompt.style.display = "block";
+																			Wall12.material = wallIndex.wallmanMaterial;
+																		};
+																	};
+															since the door is being changed to a different material, it doesnt trigger. 		
+															
+													4pm 3/20 =>
+														Currently, the door changes to a false door material, I want to make it go from normal door => false door => no door
+																																					(add teleport when walk into false door)
+														
+												-->
+
+	<head>
+		<title> Vacation Home </title>
+		
+		<style>
+			body { margin: 0; user-select: none}
+			
+			.widget {
+				position: absolute;
+				top: 20px;
+				display: block;
+				background-color: #525252;
+				padding: 5px;
+				border: 2px dotted white;
+				opacity : 0.5;
+				color: white;
+			}
+			#devLog {
+				width: 275px;
+				display:none;
+			}
+			#hideDev {
+				top: 0px;
+				padding: 0px;
+			}
+			#pause {
+				position: absolute;
+				margin:0;
+				font-family: Arial;
+				font-size: 48px;
+				width:100%;
+				height:100%;
+				opacity: 0.75;
+				background-color: #525252;
+				text-align:center;
+				display:none;
+				
+			}
+			#doorPrompt{
+				position: absolute;
+				top:70%;
+				left:25%;
+				color:red;
+				margin:0;
+				font-family:Arial;
+				font-size: 32px;
+				width:50%;
+				height:30%;
+				opacity:0.5;
+				text-align:center;
+				display:none;
+			}
+			#contentDiv {
+				position: absolute;
+				margin: 0;
+				top: 50px;
+				left: 70%;
+				
+				width: 25%;
+				height: 70%;
+				background-color: #525252;
+				opacity: 0.75;
+				
+				padding:5px;
+				color:black;
+				font-size: 24px;
+				display:none;
+			}
+			#optionDiv {
+				display: none;
+				font-size:22px;
+			}
+			#inputLogger {
+				position: absolute;
+				right: 0%;
+				top: 30%;
+			}
+			.reactButton {
+				margin:0% 15% 0% 15%;
+				opacity: 1;
+				padding: 5px;
+			}
+			.reactButton:hover {
+				background-color: #363636;
+				border: 1px solid white;
+			}
+			#showControls {
+				background-color: #7E1900;
+				position: absolute;
+				right: 0%;
+				top: 35%;
+			}
+			#controlScheme {
+				display: none;
+				top:70%;
+				bottom:5%;
+				right:35%;
+			}
+		</style>
+		
+		
+	</head>
+	
+	<body>
+		<div id="pause">	
+			<h2 style="text-align:right">The Unga Archives</h2>
+			<hr>
+			<p id="resumeButton" class="reactButton">Resume</p>
+			<p id="optionButton" class="reactButton">Options</p>
+			<p id="exitButton" class="reactButton">Exit</p>
+			
+			<div id="optionDiv">
+				<p id="inputLogger" class="reactButton">Console Log all Inputs</p>
+				<p id="showControls" class="reactButton">Show Controls</p>
+			</div>
+		</div>
+		
+		<div id="hideDev" class = "widget">[x]</div>
+		<div id="devLog" class="widget">
+			
+			<h2>DEV LOG</h2>
+			<hr>
+			<p id="frameLog"></p>
+			<p id="coordinates"></p>
+		</div>
+		
+		<div id="controlScheme" class = "widget">
+		
+			<p>MOVEMENT: WASD <br> TURN: MOUSE CONTROLS <br> SHIFT TURNS SPEED UP <br> TAB TURNS SPEED DOWN <br> SPACE AND ALT VERTICAL CONTROLS
+				<br> LEFT CORNER X OPENS DEV LOG
+			</p>
+		</div>	
+		
+		<div id="doorPrompt">
+			<h3>Cannot Open Na Door (There is no escape.)</h3>
+		</div>
+		
+		<div id="contentDiv">
+			<h3 id="contentTitle">The unga Tribe</h3>	
+			<hr>
+			<div id="content"></div>
+			
+		</div>
+		<script type="module">
+			
+			import * as THREE from 'https://unpkg.com/three/build/three.module.js';
+			
+			const scene = new THREE.Scene();
+			
+			const camera = new THREE.PerspectiveCamera( 120,										//FOV
+														window.innerWidth / window.innerHeight,	//Aspect Ratio
+														0.01,									//Near
+														1000									//Far
+														);
+			const renderer = new THREE.WebGLRenderer();
+			renderer.setSize(window.innerWidth, window.innerHeight);
+			document.body.appendChild( renderer.domElement );
+			
+			const textureLoader = new THREE.TextureLoader();
+			
+			window.addEventListener("resize", function(){
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+				renderer.setSize(window.innerWidth, window.innerHeight);
+			});
+			
+			//Keyboard events
+			
+				var keyboardState = []; //Hold all keyboard inputs
+				var showInputs = true; //If yes, log all keyboard inputs
+
+				document.addEventListener("keydown", function(event){
+					keyboardState[event.key] = true;
+					
+					if(event.key === "Escape"){
+						if(pause.style.display === "block"){
+							
+							pause.style.display = "none";
+							optionDiv.style.display = "none";
+							moveSpeed = 0.03;
+						} else {
+							pause.style.display = "block";
+							moveSpeed = 0;
+						};
+					};
+					
+					event.preventDefault();
+					if(showInputs === true){
+						console.log("Key pressed : " + event.key);
+					};
+				});
+				
+				document.addEventListener("keyup", function(event){
+				keyboardState[event.key] = false;
+					keyboardState[event.key.toUpperCase()] = false;
+					keyboardState[event.key.toLowerCase()] = false;
+					
+					if(showInputs === true){
+						console.log("Key Lifted : " + event.key);
+					};
+				});
+				
+			//Mouse events
+				
+				var delta = new THREE.Vector2(); //Mouse Delta
+				var mouseLast = new THREE.Vector2();
+				
+				document.addEventListener("mousemove", function(event){
+					
+					delta.x = event.clientX - mouseLast.x;
+					delta.y = event.clientY - mouseLast.y;
+	
+					mouseLast.x = event.clientX;
+					mouseLast.y = event.clientY;
+				});
+			
+			//html element ID assigning
+				const pause = document.getElementById("pause");
+					const resumeButton = document.getElementById("resumeButton");
+						resumeButton.addEventListener("click", function(){
+							pause.style.display = "none";
+							optionDiv.style.display = "none";
+							moveSpeed = 0.03;
+						});
+					const optionButton = document.getElementById("optionButton");
+					const optionDiv = document.getElementById("optionDiv");
+						optionButton.addEventListener("click", function(){
+							optionDiv.style.display = "block";
+						});
+						
+							const inputLogger = document.getElementById("inputLogger");
+								inputLogger.addEventListener("click", function(){
+									if(showInputs === true){
+										showInputs = false;
+									} else {
+										showInputs = true;
+									};
+								});
+							const showControls = document.getElementById("showControls");
+							const controlScheme = document.getElementById("controlScheme");
+								showControls.addEventListener("click", function(){
+									if(controlScheme.style.display === "none"){
+									controlScheme.style.display = "block";
+									}else {
+									controlScheme.style.display = "none";
+									};
+								});
+							
+					const exitButton = document.getElementById("exitButton");
+						exitButton.addEventListener("click", function(){
+							window.close();
+						});
+						
+				
+				const doorPrompt = document.getElementById("doorPrompt");
+				
+				const contentDiv = document.getElementById("contentDiv");
+					const contentTitle = document.getElementById("contentTitle");
+					const content = document.getElementById("content");
+				
+				const DevLog = document.getElementById("devLog");
+					const frameLog = document.getElementById("frameLog");
+					const coordinatesElement = document.getElementById("coordinates");
+					const hideButton = document.getElementById("hideDev");
+					
+				hideButton.addEventListener("click", function(event){
+					if(DevLog.style.display === "none"){
+						DevLog.style.display = "block";
+					} else {
+						DevLog.style.display = "none";
+					};
+				});
+				
+				
+			
+			//Static Objects in world
+			
+				var skyBoxTexture = textureLoader.load("https://ik.imagekit.io/ihc3sy5oi/ceiling.jpg?updatedAt=1679172737504");
+				
+				const skyBox = {
+					geometry: new THREE.BoxGeometry(35, 0.001, 35),
+					material: new THREE.MeshBasicMaterial({map: skyBoxTexture})
+				};
+				const skyBoxElement = new THREE.Mesh(skyBox.geometry, skyBox.material);
+				skyBoxElement.position.set(0, 3, 0);
+				scene.add(skyBoxElement);
+			
+				var floorTexture = textureLoader.load("https://ik.imagekit.io/ihc3sy5oi/floor.jpg?updatedAt=1679002118177");
+				const floor = {
+					geometry: new THREE.BoxGeometry(5, 0.001, 5),
+					material: new THREE.MeshBasicMaterial({ map: floorTexture })
+				};
+				
+				const floorElement = new THREE.Mesh(floor.geometry, floor.material);
+				scene.add(floorElement);
+				
+				const floor2Element = new THREE.Mesh(floor.geometry, floor.material);
+				floor2Element.position.set(0, 0, 5);
+				floor2Element.rotation.y += Math.PI;
+				scene.add(floor2Element);
+				
+				const floor3Element = new THREE.Mesh(floor.geometry, floor.material);
+				floor3Element.position.set(-5, 0, 5);
+				scene.add(floor3Element);
+				
+				const floor4Element = new THREE.Mesh(floor.geometry, floor.material);
+				floor4Element.position.set(-5, 0, 10);
+				scene.add(floor4Element);
+				
+				const floor5Element = new THREE.Mesh(floor.geometry, floor.material);
+				floor5Element.position.set(0, 0, 10);
+				scene.add(floor5Element);
+				
+				const floor6Element = new THREE.Mesh(floor.geometry, floor.material);
+				floor6Element.position.set(5, 0, 5);
+				scene.add(floor6Element);
+				
+				var wallTexture = textureLoader.load("https://ik.imagekit.io/ihc3sy5oi/WallTexture.png?updatedAt=1679003320598");
+				var signTexture = textureLoader.load("https://ik.imagekit.io/ihc3sy5oi/SignTexture.png?updatedAt=1679158425547");
+				var scaryWallTexture = textureLoader.load("https://ik.imagekit.io/ihc3sy5oi/scaryWall.png?updatedAt=1679176724363");
+				var floatObjectTexture = textureLoader.load("https://ik.imagekit.io/ihc3sy5oi/floatObject.jpg?updatedAt=1679170438144");
+				var doorTexture = textureLoader.load("https://ik.imagekit.io/ihc3sy5oi/door.png?updatedAt=1679178131074");
+				var bookshelfTexture = textureLoader.load("https://ik.imagekit.io/ihc3sy5oi/bookshelf.png?updatedAt=1679198879583");
+				var bookshelf2Texture = textureLoader.load("https://ik.imagekit.io/ihc3sy5oi/bookshelf2.png?updatedAt=1679241815110");
+				var carpetTexture = textureLoader.load("https://ik.imagekit.io/ihc3sy5oi/carpetTexture.jpg?updatedAt=1679239099040");
+				var shrexyTexture = textureLoader.load("https://ik.imagekit.io/ihc3sy5oi/VryFancyPainting.png?updatedAt=1679251464471");
+				var falsedoorTexture = textureLoader.load("https://ik.imagekit.io/ihc3sy5oi/falsedoor.png?updatedAt=1679257730600");
+				const wallIndex = {
+					geometry: new THREE.BoxGeometry(2.5, 2.5, 0.25),
+					material: new THREE.MeshBasicMaterial({map: wallTexture}),
+					signmaterial: new THREE.MeshBasicMaterial({map: signTexture }),
+					objectGeometry: new THREE.BoxGeometry(0.55, 3.5, 0.55),
+					floatObjectMaterial: new THREE.MeshBasicMaterial({map: floatObjectTexture}),
+					scaryWallMaterial: new THREE.MeshBasicMaterial({map: scaryWallTexture}),
+					doorMaterial: new THREE.MeshBasicMaterial({map: doorTexture}),
+					bookshelfMateral: new THREE.MeshBasicMaterial({map: bookshelfTexture}),
+					bookshelf2Material: new THREE.MeshBasicMaterial({map: bookshelf2Texture}),
+					carpetGeometry: new THREE.BoxGeometry(3, 0.025, 2),
+					carpetMaterial: new THREE.MeshBasicMaterial({map : carpetTexture}),
+					
+					falsematerial: new THREE.MeshBasicMaterial({map: falsedoorTexture}),
+					
+					decalGeometry: new THREE.BoxGeometry(1, 1, 0.25),
+					shrexyMaterial: new THREE.MeshBasicMaterial({map: shrexyTexture})
+				};
+				var ShrexyDecal = new THREE.Mesh(wallIndex.decalGeometry, wallIndex.shrexyMaterial);
+				ShrexyDecal.position.set(2.49, 1.6, 5.5);
+				ShrexyDecal.rotation.y += Math.PI/2;
+				scene.add(ShrexyDecal);
+				
+				var carpetObject = new THREE.Mesh(wallIndex.carpetGeometry, wallIndex.carpetMaterial);
+				carpetObject.position.set(0.5, 0, 3.85);
+				scene.add(carpetObject);
+				
+				var floatObject = new THREE.Mesh(wallIndex.objectGeometry, wallIndex.floatObjectMaterial);
+				floatObject.position.set(-2.5, 1.25, 5.05);
+				scene.add(floatObject);
+				
+				var Wall1 = new THREE.Mesh(wallIndex.geometry, wallIndex.material);
+				Wall1.position.set(-1.15, 1.25, -2.5);
+				scene.add(Wall1);
+				
+				var Wall2 = new THREE.Mesh(wallIndex.geometry, wallIndex.material);
+				Wall2.position.set(1.35, 1.25, -2.5);
+				scene.add(Wall2);
+				
+				var Wall3 = new THREE.Mesh(wallIndex.geometry, wallIndex.material);
+				Wall3.position.set(-2.5, 1.25, -1.15);
+				Wall3.rotation.y += Math.PI/2;
+				scene.add(Wall3);
+				
+				var Wall4 = new THREE.Mesh(wallIndex.geometry, wallIndex.material);
+				Wall4.position.set(-2.5, 1.25, 1.35);
+				Wall4.rotation.y += Math.PI/2;
+				scene.add(Wall4);
+				
+				var Wall5 = new THREE.Mesh(wallIndex.geometry, wallIndex.signmaterial);
+				Wall5.position.set(-2.5, 1.25, 3.85);
+				Wall5.rotation.y += Math.PI/2;
+				scene.add(Wall5);
+				
+				var Wall5Mask = new THREE.Mesh(wallIndex.geometry, wallIndex.material);
+				Wall5Mask.position.set(-2.55, 1.25, 3.9);
+				Wall5Mask.rotation.y += Math.PI/2;
+				scene.add(Wall5Mask);
+				
+				var Wall6 = new THREE.Mesh(wallIndex.geometry, wallIndex.scaryWallMaterial);
+				Wall6.position.set(-3.8, 1.25, 2.5);
+				scene.add(Wall6);
+				
+				//STARTING WALL BESIDE WALL 2
+				
+				var Wall7 = new THREE.Mesh(wallIndex.geometry, wallIndex.material);
+				Wall7.position.set(2.5, 1.25, -1.15);
+				Wall7.rotation.y += Math.PI/2;
+				scene.add(Wall7);
+				
+				var Wall8 = new THREE.Mesh(wallIndex.geometry, wallIndex.material);
+				Wall8.position.set(2.5, 1.25, 1.35);
+				Wall8.rotation.y += Math.PI/2;
+				scene.add(Wall8);
+				
+				var Wall9 = new THREE.Mesh(wallIndex.geometry, wallIndex.doorMaterial);
+				Wall9.position.set(2.5, 1.25, 3.85);
+				Wall9.rotation.y += Math.PI/2;
+				scene.add(Wall9);
+				
+				var Wall10 = new THREE.Mesh(wallIndex.geometry, wallIndex.material);
+				Wall10.position.set(2.5, 1.25, 6.35);
+				Wall10.rotation.y += Math.PI/2;
+				scene.add(Wall10);
+				
+				var Wall11 = new THREE.Mesh(wallIndex.geometry, wallIndex.material);
+				Wall11.position.set(2.5, 1.25, 8.85);
+				Wall11.rotation.y += Math.PI/2;
+				scene.add(Wall11);
+				
+				//BACK TO BESIDE WALL 6
+				
+				var Wall12 = new THREE.Mesh(wallIndex.geometry, wallIndex.material);
+				Wall12.position.set(-6.3, 1.25, 2.5);
+				scene.add(Wall12);
+				
+				var Wall13 = new THREE.Mesh(wallIndex.geometry, wallIndex.material);
+				Wall13.position.set(-7.55, 1.25, 3.9);
+				Wall13.rotation.y += Math.PI/2;
+				scene.add(Wall13);
+				
+				var Wall14 = new THREE.Mesh(wallIndex.geometry, wallIndex.material);
+				Wall14.position.set(-7.55, 1.25, 6.4);
+				Wall14.rotation.y += Math.PI/2;
+				scene.add(Wall14);
+				
+				var Wall15 = new THREE.Mesh(wallIndex.geometry, wallIndex.material);
+				Wall15.position.set(-7.55, 1.25, 8.9);
+				Wall15.rotation.y += Math.PI/2;
+				scene.add(Wall15);
+				
+				var Wall16 = new THREE.Mesh(wallIndex.geometry, wallIndex.material);
+				Wall16.position.set(-7.55, 1.25, 11.4);
+				Wall16.rotation.y += Math.PI/2;
+				scene.add(Wall16);
+				
+				var Wall17 = new THREE.Mesh(wallIndex.geometry, wallIndex.material);
+				Wall17.position.set(-6.25, 1.25, 12.6);
+				scene.add(Wall17);
+				
+				var Wall18 = new THREE.Mesh(wallIndex.geometry, wallIndex.material);
+				Wall18.position.set(-3.75, 1.25, 12.6);
+				scene.add(Wall18)
+				
+				var Wall19 = new THREE.Mesh(wallIndex.geometry, wallIndex.bookshelf2Material);
+				Wall19.position.set(-1.25, 1.25, 12.6);
+				scene.add(Wall19);
+				
+				var Wall20 = new THREE.Mesh(wallIndex.geometry, wallIndex.bookshelfMateral);
+				Wall20.position.set(1.25, 1.25, 12.6);
+				scene.add(Wall20);
+				
+				var Wall20 = new THREE.Mesh(wallIndex.geometry, wallIndex.material);
+				Wall20.position.set(2.5, 1.25, 11.35);
+				Wall20.rotation.y += Math.PI/2;
+				scene.add(Wall20);
+			camera.position.y = 1.7;
+			
+			var frame = 0;
+			var contentPage = 1;
+			contentDiv.addEventListener("click", function(){
+							contentPage++;
+							console.log(contentPage);
+						});
+			
+			var direction = new THREE.Vector3;
+			var moveSpeed = 0.03;
+			var eventCounter = 0;
+			
+				//These variables are incremental
+				//The user holds one of the keys, it increments to 5, then applies a value to the moveSpeed
+				//Basically, go faster or slow down
+			var shift = 0;
+			var tab = 0;
+			
+			function animate(){
+			//request the animation frame
+				requestAnimationFrame( animate );
+				
+			//Check for keyboard inputs
+				
+				if(keyboardState[" "]){ //Space | +=Y 
+					camera.position.y += moveSpeed;
+				};
+				if(keyboardState["Alt"]){ //Control -=Y
+					camera.position.y -= moveSpeed;
+				};
+				if(keyboardState["w"]){
+					camera.getWorldDirection(direction);
+					camera.position.addScaledVector(direction, moveSpeed);
+				};
+				if(keyboardState["s"]){
+					camera.getWorldDirection(direction);
+					camera.position.addScaledVector(direction, (moveSpeed * -1));
+				};
+				if(keyboardState["a"]){
+					camera.translateX(-moveSpeed);
+				};
+				if(keyboardState["d"]){
+					camera.translateX(moveSpeed);
+				};
+				if(keyboardState["Shift"]){
+					shift++;
+						if(shift > 5){
+							moveSpeed += 0.01;
+							shift = 0;
+						};
+				};
+				if(keyboardState["Tab"]){
+					tab++;
+						if(tab > 5){
+							moveSpeed -= 0.01;
+							tab = 0;
+						};
+				};
+			
+					if(moveSpeed > 0.15){
+						moveSpeed = 0.15;
+					};
+					if(moveSpeed < 0){
+						moveSpeed = 0;
+					};
+				
+			//Mouse camera rotation
+			
+					//When the Y axis rotated 360 degrees, set the rotation to 0
+					//Doesnt affect how it looks, other than the rotation value seen top right
+				if(Math.abs(camera.rotation.y) > (Math.PI * 2)){
+					camera.rotation.y = 0;
+				};
+			
+			var scaleFactor = 0.006;
+			
+				camera.rotation.y -= delta.x * scaleFactor * (1 + Math.abs(camera.rotation.x) / Math.PI);
+				//camera.rotation.x -= delta.y * scaleFactor;
+				//camera.rotation.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, camera.rotation.x));
+				
+					//if(camera.rotation.x < -0.25){
+					//	camera.rotation.x = -0.25;
+					//};
+					//if(camera.rotation.x > 0.25){
+					//	camera.rotation.x = 0.25;
+					//};
+					
+				
+				delta.set(0,0);
+				
+					if (camera.position.x > -5 && camera.position.x < -2.5 && camera.position.z > 2.5 && camera.position.z < 5) {
+					  // Get close to scary wall	
+					  if(eventCounter < 2){
+						Wall9.material = wallIndex.falsematerial;
+						};
+							
+					} else {
+					  // Do something when leave scary wall
+						  if(Wall9.material === wallIndex.material){
+						  doorPrompt.style.display = "block";
+						  
+						  };
+					};
+					
+					
+				
+					if (camera.position.x > 1 && camera.position.x < 2.5 && camera.position.z > 2.5 && camera.position.z < 5) {
+					  // Get close to door	
+							doorPrompt.innerHTML = "The door won't budge.";
+								if(Wall9.material === wallIndex.falsematerial){
+									
+										if(eventCounter < 2){
+											camera.position.set(-4, 1.7, 4);
+											camera.rotation.y = 0;
+											eventCounter++;
+										};
+										if(eventCounter <= 2){
+											Wall9.material = wallIndex.material;
+										};
+								}
+								if(eventCounter > 0){
+									doorPrompt.innerHTML += "<br> Wasn't there was a door here?";
+								};
+							doorPrompt.style.display = "block";
+						
+					}else if (camera.position.x > 1 && camera.position.x < 2.5 && camera.position.z > 5 && camera.position.z < 7.5) {
+					  // Get close to painting	
+							doorPrompt.innerHTML = "Thanks Brandon, very nice.";
+							doorPrompt.style.display = "block";
+						
+					}else {
+					  // Do something else if camera.position.x is outside the specified range
+					  doorPrompt.style.display = "none";
+					};
+					
+					
+					
+					//Bookshelf Event
+						
+						const contentPage1 = {
+							title: "The Beginnings",
+							text: "The UngaBunga Tribe started a long, long time ago. The legends say that the start was during the" +
+									" collision of two other tribes. Waring with each other, the two proxy tribes were never meant to last." +
+									" However, that did not mean total defeat. The other inhabitants (mostly Nomads but also straggler families) had an outsider perspective of the two warring tribes, " +
+									"and they figured 'Hey, when these guys all die, we can have all of their stuff!' <br><br>" +
+									"And so, through the power of looting and greed, a beautiful thing emerges. These outsiders, all being drawn to a mutual goal, form together" + 
+									" to make a larger (much more powerful) group that is ready to sweep in and collect before the dust can even settle. <br><br>" + 
+									"After, the group spreads out from themselves. Having collected their due, they felt as though they no longer had business with each other. <br>1/3"
+						};
+						const contentPage2 = {
+							title: "There were mistakes...",
+							text: "There were mistakes, however. The solo nomads who left would carry all they could get their arms around, and were soon highway-robbed " +
+									"by other stragglers. The more people in a group, the stronger the group. The stronger the group, the more they can take from people." +
+									" Because of this, families that happened to be in the area when the war hit its peak became the top dogs, purely out of population scale alone. <br><br>" +
+									"Among families were other groups of raiders. After both warring tribes fell, a lot of land opened up for real estate. This gave room to would-be " +
+									"slavers and raider gangs. Most of them very small, only numbering in the tens at most. These camps, resting in the cities of dead armies, did not " +
+									"know how history will repeat itself. Smaller wars were waged, over the fresh scars of war, new raiders and camps were created and destroyed. <br>2/3"
+						};
+						const contentPage3 = {
+							title: "Unity in common enemies",
+							text: "Some became unified through hardships. It seemed easier to fight off packs of raiders when there was someone watching your back. This is the " + 
+									"essense of the UngaBunga Tribe. The members hold devotion to the tribe. Not the members. There are no 'laws' written for " +
+									"the UngaBunga Tribe. The style of government is simply Anarchy, with order being set behind walls of personal privacy. There is not a police station, " +
+									"there is a family with a near the center of town. They have a kid, and the dad is a bit of a drinker. Every night, when he gets wasted, he walks around the premises " +
+									"and if he sees anything odd afoot, well...when in Rome..? <br> Could call the town drunk the town sheriff, but most disputes are handled personally within the tribe. " +
+									"<br>There are instances of crimes commited within the tribe that did require the entire tribe to come together to make decisions. <br> 3/3"
+						};
+						const contentPage4 = {
+							title : "First Crimes within the UngaBunga Tribe",
+							text: "The first crime recorded within the UngaBunga tribe is a difficult thing to track. Since the entire tribe began from the ecosystem between warring tribes, crimes "+
+									"were commonplace. But, the first crime commited after the official name of Tribe UngaBunga was set is said to be a murder. An accident, sadly. Days after the "+
+									"perimeters were set, an enemy tribe attacked and during the battle, there was an incident of friendly fire. Carlisle Joh Ung snapped the spine of a "+
+									"18 year old volunteer fighter with a single clean hammer swipe. Carlisle was a blacksmith by trade, and so he took his blacksmith hammer into battle with him. <br><br>"+
+									"The battle went on, Carlisle went on to kill three of the enemy before the battle ended and the dust settled. When the bodies were counted, Carlisle admitted to "+
+									"believing he killed the young boy with his hammer. <br>1/4"
+						};
+						const contentPage5 = {
+							title : "The fate of Carlisle Joh Ung",
+							text: "The council decided that, since Carlisle admitted to killing the young boy by accident, he should be given a lesser sentence. He was forced to live in the cells that, "+
+									"he the town blacksmith, had built. But he was allowed to work within the cells. Given tools during supervised times, he was allowed to make weapons for the UngaBunga"+
+									"Tribe. <br> <br> After years, he was allowed to temporarily leave his cell. Sort of a 'Good behaviour.' It was during one of these short windows that the family"+
+									" of that boy went about the assassination of Carlisle Joh Ung. Using his own hammer, the same hammer that snapped the spine of that boy years ago, his assassin crushed his"+
+									" skull into the cement.<br><br> Whoever killed Carlisle got away with it, atleast as far as the record goes. 		<br> 2/4"
+						};
+						const contentPage6 = {
+							title : "The Crime of Sinistry",
+							text: "At some point during the UngaBunga Tribes history, a movement began that came to be known as the 'Following of Sinistry.' These followers of Sinistry began to "+
+									"cause quite a stir within the UngaBunga tribe with their activities. Some residents came together complaining of being held up, robbed, beaten, tormented all behind the walls of the "+
+									"UngaBunga Tribe. These residents came together and planned to take care of the problem. It wasnt until they made their attempt that exactly half of the "+
+									"residents turned and backstabbed the others. There was, apparently, a network of spies that ensured that the followers of Sinistry would win the encounter."+
+									"<br><br>This would only prove to be the beginning of this strange occult following. Some believe that the followers of Sinistry were the ones who killed "+
+									"Carlisle Joh Ung, but there is little evidence of that.<br> 3/4"
+						};
+						const contentPage7 = {
+							title : "The Cry of Sinistry",
+							text: "One day, during the colder months, the residents were awakened forcefully. Every single one, all members of the UngaBunga Tribe. The Followers of Sinistry had chosen" +
+									" that moment to strike. Flames roses high over every inch of the premises. The buildings themselves were not entirely destroyed, the fire spared them along with "+
+									"the survivors. All across the city, crucifixes rose into the flames. Upon them were seemingly anyone at random. A few were tribes men and women. A few children" +
+									" and animals. But also some people who were known enemies of the tribe. People who had previous altercations with the tribe. Underneath each crucifix was carved into the ground "+
+									"<b>'Follow Sinistry, become a sinister or suffer the same fate'</b>.<br> 4/4"
+						};
+						const contentPage8 = {
+							title : "BREAK OUT BREAK OUT BREAK OUT BREAK OUT",
+							text : "<b>find the exit-</b> <b>find</b> the exit- find <b>the</b> exit- find the <b>exit-</b> <b>find the exit-</b> find the exit- find the exit- find the exit- find the exit- " +
+									"find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- " +
+									"find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- " +
+									"find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- <br><br>" +
+									"find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- " +
+									"find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- find the exit- find the exit <br>1/1" 
+						};
+						const contentPage9 = {
+						
+						};
+						
+				
+						if (camera.position.x > 0 && camera.position.x < 2.5 && camera.position.z > 11 && camera.position.z < 13) {
+						//Get close to the bookshelf
+							contentDiv.style.display = "block";
+							if(contentPage == 1){
+								contentTitle.innerHTML = contentPage1.title;
+								content.innerHTML = contentPage1.text;
+							}; 
+							if(contentPage == 2){
+								contentTitle.innerHTML = contentPage2.title;
+								content.innerHTML = contentPage2.text;
+							};
+							if(contentPage == 3){
+								contentTitle.innerHTML = contentPage3.title;
+								content.innerHTML = contentPage3.text;
+							};	
+							if(contentPage == 4){
+								contentTitle.innerHTML = contentPage4.title;
+								content.innerHTML = contentPage4.text;
+							};
+							if(contentPage == 5){
+								contentTitle.innerHTML = contentPage5.title;
+								content.innerHTML = contentPage5.text;
+							};
+							if(contentPage == 6){
+								contentTitle.innerHTML = contentPage6.title;
+								content.innerHTML = contentPage6.text;
+							};
+							if(contentPage == 7){
+								contentTitle.innerHTML = contentPage7.title;
+								content.innerHTML = contentPage7.text;
+							};
+							if(eventCounter > 0 && contentPage == 8){
+								contentTitle.innerHTML = contentPage8.title;
+								content.innerHTML = contentPage8.text;
+							};
+							if(eventCounter <= 2){
+								contentTitle.innerHTML = contentPage9.title;
+								content.innerHTML = contentPage9.text;
+							};
+						}else {
+							contentDiv.style.display = "none";
+							contentPage = 1;
+						};
+						
+						
+
+			//Render Scene
+				renderer.render(scene, camera);
+				
+			//Update Frames
+				frame++;
+				frameLog.innerHTML = "Frame " + frame + " | (a bajillion frames per second)";
+				
+			//DevLog stuff
+				coordinatesElement.innerHTML = "<hr> Camera <br>  <br>   x: " + camera.position.x + " <br>   y: " + camera.position.y + "<br>   z: " + camera.position.z; 
+				coordinatesElement.innerHTML += "<br> <hr> Rotation <br> <br>   x: " + camera.rotation.x + "<br>   y: " + camera.rotation.y + "<br>   z: " + camera.rotation.z;
+				coordinatesElement.innerHTML += "<br> Move Speed : " + moveSpeed;
+				if(controlScheme.style.display === "block"){
+					showControls.style.backgroundColor = "#007E20";
+				};
+				if(controlScheme.style.display === "none"){
+					showControls.style.backgroundColor = "#7E1900";
+				};
+				if(showInputs === true){
+					inputLogger.style.backgroundColor = "#007E20";
+				};
+				if(showInputs === false){
+					inputLogger.style.backgroundColor = "#7E1900";
+				};
+			};
+			animate();
+		</script>
+	
+	</body>
+
+</html>
